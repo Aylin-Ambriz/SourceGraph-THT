@@ -416,46 +416,47 @@ class Trainer:
 
 
 def run(args):
-    logger.info(" Starting training / evaluation")
+    logger.info(" Starting training / evaluation") #log start of the process
     
     logger.info(" Downloading Data Files")
-    dataset_path = download_dataset(args.cache_dir) 
+    dataset_path = download_dataset(args.cache_dir) #download dataset to a specified cache dir
 
     logger.info(" Loading Data Files")
-    dataset = load_dataset('json', data_files=dataset_path) 
-    # train test split
+    dataset = load_dataset('json', data_files=dataset_path)  #load the dataset from the downloaded JSON files
+    #train test split
     dataset = dataset['train'].train_test_split(0.1, shuffle=False) 
         
     logger.info(" Initializing Tokenizer")
     tokenizer = RobertaTokenizer.from_pretrained(args.tokenizer_name) 
     
-    logger.info(" Preparing Features")
-    dataset = dataset.map(convert_examples_to_features, batched=True, fn_kwargs={"tokenizer":tokenizer, "args":args})
+    logger.info(" Preparing Features") 
+    dataset = dataset.map(convert_examples_to_features, batched=True, fn_kwargs={"tokenizer":tokenizer, "args":args}) 
+    #convert raw examples to features using tokenizer
 
     logger.info(" Intializing training and validation dataset ")
-    train_dataset = dataset['train']
-    num_train_examples = len(dataset['train'])
-    # create tf train dataset
-    tf_train_dataset = get_train_tfdataset(train_dataset, num_train_examples, args) 
+    train_dataset = dataset['train'] #get the training split of the dataset
+    num_train_examples = len(dataset['train']) #get num of validation examples
+    tf_train_dataset = get_train_tfdataset(train_dataset, num_train_examples, args) #covert training dataset to a tensorflow one
     
-    validation_dataset = dataset['test']
-    num_validation_examples = len(dataset['test'])
-    # create tf validation dataset
+    validation_dataset = dataset['test'] #get test split of data
+    num_validation_examples = len(dataset['test']) #len of validation ex
+    #create tf validation dataset
     tf_validation_dataset = get_validation_tfdataset(train_dataset, num_validation_examples, args) 
     
-    logger.info(f' Intializing model | {args.model_type.upper()} ')
-    with strategy.scope():
+    logger.info(f' Intializing model | {args.model_type.upper()} ') #log model intitialization
+    with strategy.scope(): #ex distribution strategy for training across many gpus
         # model must be created under `strategy.scope`
-        model = TFT5ForConditionalGeneration.from_pretrained(args.model_name_or_path, from_pt=True)
+        model = TFT5ForConditionalGeneration.from_pretrained(args.model_name_or_path, from_pt=True) #load the pretrained model within strategy scope
     
     # custom training loop
     trainer = Trainer(model, args, tf_train_dataset, tf_validation_dataset, num_train_examples, num_validation_examples) 
+    #initialize trainer with the model, parameters, and datasets
     trainer.train()
     
     # save pretrained model and tokenizer
     logger.info(f" Saving model in {args.save_dir}")
-    trainer.model.save_pretrained(args.save_dir)
-    tokenizer.save_pretrained(args.save_dir)
+    trainer.model.save_pretrained(args.save_dir) #saved trained model to specified directory
+    tokenizer.save_pretrained(args.save_dir) #do the same with tokenizer
 
 
 # In[12]:

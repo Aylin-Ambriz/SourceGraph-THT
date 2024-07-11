@@ -27,7 +27,7 @@ def generate_python_code(args, prompt_text, max_tokens=150):
         return decoded_code
 
     except Exception as e:
-        # Handle any errors gracefully
+        # Handle any errors 
         print("Error:", e)
         return None
 
