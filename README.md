@@ -5,3 +5,6 @@ This project takes an input of natural language and outputs python code to achie
 
 Proudly created by Atharva Patel
 
+The decoder-decoder model we built generates python code snippets from natural language prompts. It uses the  Salesforce model, which is designed for code-related tasks. The model first checks if its proper and if it is found within our dataset. If it is, it runs the query--the model has been trained on the T5 Hugging Face semantic knowledge, Salesforce conditional generators, and Google research LLM data. Given more time, I would have expanded the dataset to include more repositories, programming languages, and real-world projects to improve the model's generalization. On top of this, I would also pre-train on both code and natural language documentation as well as multiple programming languages simultaneously. Then, I would change the transformer model approach to include much more computationally intensive programs as opposed to the low-compute, proof-of-concept approach we are currently taking.
+
+Proudly created by Aylin Ambriz
