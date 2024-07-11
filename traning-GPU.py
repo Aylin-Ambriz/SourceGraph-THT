@@ -1,3 +1,4 @@
+#This is the GPU version (copy) trained on my new Alienware!
 import os
 import time
 import math

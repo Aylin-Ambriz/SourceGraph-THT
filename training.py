@@ -1,9 +1,7 @@
-
+#Import satements
 import tensorflow as tf
 from transformers import *
 from datasets import load_dataset
-
-# Rest of your code goes here
 
 
 import os
@@ -19,7 +17,8 @@ import tensorflow as tf
 from transformers import *
 from datasets import load_dataset
 
-logging.set_verbosity_warning()
+#Making sure the logging works
+logging.set_verbosity_warning()  
 logging.set_verbosity_error()
 
 import logging
@@ -41,7 +40,7 @@ def setup_strategy(xla, fp16, no_cuda):
     
     # setup mixed precision training
     if fp16:
-        # Set to float16 at first
+        # Set to float16 at first using tensorflow
         print(" Mixed Precision Training Enabled")
         policy = tf.keras.mixed_precision.experimental.Policy("mixed_float16")
         tf.keras.mixed_precision.experimental.set_policy(policy)
@@ -81,18 +80,22 @@ strategy = setup_strategy(xla=True, fp16=False, no_cuda=False)
 
 def download_dataset(cache_dir):
     # download data using a keras utility
+    # used this research file because it is largest open source data on natural language to python code 
     _url = "https://raw.githubusercontent.com/google-research/google-research/master/mbpp/mbpp.jsonl" # download mbpp dataset
+    # caching the path to the dataset 
     dataset_path = tf.keras.utils.get_file("mbpp.jsonl", origin=_url, cache_dir=cache_dir, cache_subdir=cache_dir)
+    # returning dataset path to be read and processed
     return dataset_path 
 
 def convert_examples_to_features(examples, tokenizer, args):
-    # encode text-code pairs
+    # encode text-code pairs 
     texts = examples['text']
     codes = examples['code']
     # tests = [" ".join(test) for test in examples['test_list']] # convert list of test cases to single string
     
-    # encode texts by prepending the task for input sequence
+    # encode texts by prepending the task for input sequence and tokenizing
     inputs = [args.prefix + text for text in texts]
+    #Tokenize the inputs by calling the tokenizer function (using roberta)
     model_inputs = tokenizer(inputs, max_length=args.max_input_length, padding="max_length", truncation=True)
     
     # encode texts by prepending the task for input sequence and appending the test sequence
@@ -102,8 +105,8 @@ def convert_examples_to_features(examples, tokenizer, args):
     # encode texts by prepending the task for input sequence
     labels = tokenizer(codes, max_length=args.max_target_length, padding="max_length", truncation=True).input_ids
     
-    # we need to replace the index of the padding tokens by -100
-    # such that they are not taken into account by the CrossEntropyLoss
+    # Iterate through the tokens to replace the index of the padding tokens by -100 
+    # We do this so that they are not taken into account by the CrossEntropyLoss
     labels_with_ignore_index = []
     for labels_example in labels:
         labels_example = [label if label != 0 else -100 for label in labels_example]
@@ -115,9 +118,9 @@ def convert_examples_to_features(examples, tokenizer, args):
 
 
 def get_train_tfdataset(train_dataset, num_train_examples, args):
-    # select feature columns
+    # select feature columns. Only want the natural language and code values in the json
     columns = ['input_ids', 'attention_mask', 'labels'] 
-    # set to tensorflow format
+    # set parsed data to tensorflow format
     train_dataset.set_format(type='tensorflow', columns=columns) 
     
     # specify return types
@@ -127,7 +130,7 @@ def get_train_tfdataset(train_dataset, num_train_examples, args):
     # initialize dataset 
     tf_dataset = tf.data.Dataset.from_generator(lambda : train_dataset, return_types, return_shapes) 
     
-    # turn off auto-sharding
+    # turn off auto-sharding to make training to make more effecient
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
     tf_dataset = tf_dataset.with_options(options)
@@ -140,7 +143,7 @@ def get_train_tfdataset(train_dataset, num_train_examples, args):
         .prefetch(tf.data.AUTOTUNE)
     )
     
-    # distribute dataset to devices
+    # distribute dataset to devices (enables to run on CPU)
     return strategy.experimental_distribute_dataset(ds)
 
 def get_validation_tfdataset(eval_dataset, num_validation_examples, args):
@@ -156,7 +159,7 @@ def get_validation_tfdataset(eval_dataset, num_validation_examples, args):
     # initialize dataset 
     tf_dataset = tf.data.Dataset.from_generator(lambda : eval_dataset, return_types, return_shapes) 
     
-    # turn off auto-sharding
+    # turn off auto-sharding to make training to make more effecient
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
     tf_dataset = tf_dataset.with_options(options)
@@ -296,6 +299,7 @@ class Trainer:
     
     @tf.function
     def distributed_evaluation_steps(self, batch):
+        #Splitting features into key and value pairs
         features = {k: v for k, v in batch.items() if 'labels' not in k}
         labels = batch['labels']
         nb_instances = tf.reduce_sum(tf.cast(labels != -100, dtype=tf.int32))
@@ -305,7 +309,7 @@ class Trainer:
         strategy.run(self.evaluation_step, inputs)
 
     def evaluate(self):
-        # calculate total validation steps
+        # calculate total validation steps 
         steps = math.ceil(self.num_validation_examples / self.args.validation_batch_size)
         # reset eval loss after every epoch
         self.eval_loss.reset_states()
@@ -364,6 +368,7 @@ class Trainer:
             self.model.ckpt_manager = tf.train.CheckpointManager(ckpt, folder, max_to_keep=1)
             iterations = self.optimizer.iterations
             
+            # putting info into logger to display into the progress bar
             logger.info("***** Running training *****")
             logger.info(f"  Num examples = {self.num_train_examples}")
             logger.info(f"  Num Epochs = {self.args.epochs}")
@@ -371,6 +376,7 @@ class Trainer:
             logger.info(f"  Steps per epoch = {self.steps_per_epoch}")
             logger.info(f"  Total optimization steps = {t_total}")
             
+            # Transformer running metrics
             self.train_loss = tf.keras.metrics.Sum(name="training_loss")
             start_time = datetime.datetime.now()
             for epoch_iter in range(self.args.epochs):
@@ -476,7 +482,7 @@ class Args:
     max_target_length = 128
     prefix = "Generate Python: "    
 
-    # OPTIMIZER
+    # OPTIMIZER HYPERPARAMETERS
     learning_rate = 3e-3
     weight_decay = 1e-4
     warmup_ratio = 0.2
